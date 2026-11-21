@@ -1,13 +1,16 @@
 import json
 import logging
 from typing import Dict, Any, Optional
-import google.generativeai as genai
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-if settings.GEMINI_API_KEY:
-    genai.configure(api_key=settings.GEMINI_API_KEY)
+try:
+    from google import genai
+    from google.genai import types
+    _HAS_GENAI = True
+except ImportError:
+    _HAS_GENAI = False
 
 
 EXTRACTION_PROMPT = """You are an AI document categorization and metadata extraction system for the Islamic University of Technology (IUT).
@@ -51,15 +54,17 @@ class GeminiExtractor:
 
     async def extract_structured_metadata(self, text: str) -> Dict[str, Any]:
         """Send extracted OCR/PDF text to Gemini to obtain structured classification."""
-        if not settings.GEMINI_API_KEY:
-            # Fallback stub for local testing without an API key
-            logger.warning("GEMINI_API_KEY not configured. Using heuristic fallback.")
+        if not settings.GEMINI_API_KEY or not _HAS_GENAI:
+            logger.warning("GEMINI_API_KEY not configured or google-genai unavailable. Using heuristic fallback.")
             return self._heuristic_fallback(text)
 
         try:
-            model = genai.GenerativeModel(self.model_name)
+            client = genai.Client(api_key=settings.GEMINI_API_KEY)
             prompt = EXTRACTION_PROMPT.format(text=text[:8000])
-            response = await model.generate_content_async(prompt)
+            response = await client.aio.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
             raw_response = response.text.strip()
 
             # Clean markdown codeblocks if returned
