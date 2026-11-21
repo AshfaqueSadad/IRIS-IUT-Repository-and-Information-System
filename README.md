@@ -12,7 +12,6 @@ IRIS is an authenticated, AI-augmented, permanent institutional repository for n
 ## 🏛️ Project Information
 - **Department:** Computer Science and Technology, IUT
 - **Course:** Project Proposal (DP-I)
-- **Academic Supervisor:** Imtiaj Ahmed Chowdhury
 - **Team 7:**
   - Ashfaque Sadad (ID: 230042102)
   - Md Rufayed Ul Alam (ID: 230042121)
