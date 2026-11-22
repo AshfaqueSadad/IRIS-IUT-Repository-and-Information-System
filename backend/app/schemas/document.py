@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from uuid import UUID
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class DocumentStatus(str, Enum):
@@ -36,18 +37,16 @@ class DeadlineItem(BaseModel):
 class DocumentCreate(BaseModel):
     title: str
     category: str
-    subCategory: Optional[str] = None
+    sub_category: Optional[str] = None
     department: str = "All"
-    targetAudience: TargetAudience = Field(default_factory=TargetAudience)
-    sender: SenderInfo
-    publishedDate: Optional[datetime] = None
-    deadlines: List[DeadlineItem] = Field(default_factory=list)
-    extractedText: str
-    confidenceScore: float = 1.0
+    published_date: Optional[datetime] = None
     status: DocumentStatus = DocumentStatus.APPROVED
-    sourceType: SourceType = SourceType.MANUAL_UPLOAD
-    fileUrl: str
-    thumbnailUrl: Optional[str] = None
+    source_type: SourceType = SourceType.MANUAL_UPLOAD
+    file_url: str
+    thumbnail_url: Optional[str] = None
+    extracted_text: str
+    confidence_score: float = 1.0
+    notice_metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class DocumentPreviewResponse(BaseModel):
@@ -65,9 +64,23 @@ class DocumentPreviewResponse(BaseModel):
     ocrEngineUsed: str
 
 
-class DocumentResponse(DocumentCreate):
-    id: str = Field(..., alias="_id")
-    createdAt: datetime
-    updatedAt: datetime
-    uploaderId: Optional[str] = None
-    verifiedBy: Optional[str] = None
+class DocumentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    category: str
+    sub_category: Optional[str] = None
+    department: str
+    published_date: Optional[datetime] = None
+    status: DocumentStatus
+    source_type: SourceType
+    file_url: str
+    thumbnail_url: Optional[str] = None
+    extracted_text: str
+    confidence_score: float
+    notice_metadata: Dict[str, Any]
+    uploader_id: Optional[str] = None
+    verified_by: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime

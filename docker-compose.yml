@@ -1,16 +1,23 @@
 version: '3.8'
 
 services:
-  mongodb:
-    image: mongo:7.0
-    container_name: iris_mongodb
+  postgres:
+    image: postgres:16-alpine
+    container_name: iris_postgres
     restart: always
     ports:
-      - "27017:27017"
+      - "5432:5432"
     environment:
-      MONGO_INITDB_DATABASE: iris_db
+      POSTGRES_USER: iris_user
+      POSTGRES_PASSWORD: iris_password
+      POSTGRES_DB: iris_db
     volumes:
-      - mongo_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iris_user -d iris_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
@@ -21,14 +28,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - MONGODB_URI=mongodb://mongodb:27017
-      - MONGODB_DB_NAME=iris_db
+      - DATABASE_URL=postgresql+asyncpg://iris_user:iris_password@postgres:5432/iris_db
       - ENVIRONMENT=development
     volumes:
       - ./backend:/app
       - backend_uploads:/app/uploads
     depends_on:
-      - mongodb
+      postgres:
+        condition: service_healthy
 
   frontend:
     build:
@@ -45,5 +52,5 @@ services:
       - backend
 
 volumes:
-  mongo_data:
+  postgres_data:
   backend_uploads:

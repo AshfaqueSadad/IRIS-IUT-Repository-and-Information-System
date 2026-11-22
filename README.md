@@ -3,7 +3,7 @@
 [![DP-I Project](https://img.shields.io/badge/Project-DP--I%20(Team%207)-blue)](documents%20&%20artifacts/PROJECT_PLAN_AND_ARCHITECTURE.md)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/Frontend-React%20%2B%20Tailwind-61DAFB?logo=react)](https://react.dev)
-[![MongoDB](https://img.shields.io/badge/Database-MongoDB%20Atlas-47A248?logo=mongodb)](https://www.mongodb.com/)
+[![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2016-336791?logo=postgresql)](https://www.postgresql.org/)
 
 IRIS is an authenticated, AI-augmented, permanent institutional repository for notices, circulars, and academic documents at the Islamic University of Technology (IUT).
 
@@ -25,7 +25,7 @@ IRIS is an authenticated, AI-augmented, permanent institutional repository for n
 - **Hybrid Ingestion:** Manual uploads by Class Representatives (CRs) & departmental officials + automated scheduled crawler for `iutoic-dhaka.edu`.
 - **Hybrid OCR & Vision Pipeline:** PyMuPDF for native text, OpenCV preprocessing + Tesseract OCR for physical photos, and Google Gemini for structured extraction.
 - **In-Flight Uploader Verification:** Real-time preview with color-coded confidence indicators so uploaders can confirm/edit extracted metadata immediately.
-- **Typo-Tolerant Search:** MongoDB Atlas Search (Lucene) with fuzzy search over OCR text and faceted filtering (Category, Department, Batch, Sender).
+- **PostgreSQL Relational + JSONB Architecture:** Rock-solid relational integrity for users, roles, and review audit trails, combined with native `JSONB` for flexible AI-extracted metadata.
 - **Interactive Deadlines Hub:** Dedicated timeline view of upcoming dues/registrations with 1-click Google Calendar & `.ics` export.
 - **Role-Based Access Control:** Google OAuth restricted to `@iut-dhaka.edu` accounts with role assignment (Student, CR, Faculty, Admin).
 
@@ -38,8 +38,9 @@ IRIS-IUT-Repository-and-Information-System/
 │   ├── app/
 │   │   ├── api/v1/           # API routes (auth, documents, deadlines)
 │   │   ├── core/             # Configuration & JWT security
-│   │   ├── db/               # MongoDB Motor connection
-│   │   ├── models/ & schemas/# Pydantic data models
+│   │   ├── db/               # PostgreSQL async connection (SQLAlchemy + asyncpg)
+│   │   ├── models/           # SQLAlchemy ORM models (User, NoticeDocument)
+│   │   ├── schemas/          # Pydantic data schemas
 │   │   └── services/         # Storage, OCR pipeline, Gemini, scraper
 │   ├── Dockerfile
 │   └── requirements.txt
@@ -49,7 +50,7 @@ IRIS-IUT-Repository-and-Information-System/
 │   └── package.json
 ├── documents & artifacts/     # Architecture, specifications, and project plan
 │   └── PROJECT_PLAN_AND_ARCHITECTURE.md
-└── docker-compose.yml        # Multi-container orchestration (Mongo + Backend + Frontend)
+└── docker-compose.yml        # Multi-container orchestration (PostgreSQL + Backend + Frontend)
 ```
 
 ---
@@ -59,23 +60,21 @@ IRIS-IUT-Repository-and-Information-System/
 ### 1. Prerequisites
 - Python 3.11+
 - Node.js 20+
-- MongoDB (or MongoDB Atlas account)
-- Tesseract OCR (optional for local image OCR)
+- PostgreSQL (or local Docker)
 
 ### 2. Backend Setup
 ```bash
 cd backend
-python -m venv venv
+python -m venv .venv
 # On Windows:
-.\venv\Scripts\activate
+.\.venv\Scripts\activate
 # On Linux/macOS:
-source venv/bin/activate
+source .venv/bin/activate
 
 pip install -r requirements.txt
-cp .env.example .env
 uvicorn app.main:app --reload --port 8000
 ```
-API Documentation will be live at `http://localhost:8000/docs`.
+API Documentation is live at `http://localhost:8000/docs`.
 
 ### 3. Frontend Setup
 ```bash
@@ -83,12 +82,13 @@ cd frontend
 npm install
 npm run dev
 ```
-Client will be live at `http://localhost:5173`.
+Client is live at `http://localhost:5173`.
 
 ### 4. Running via Docker Compose
 ```bash
 docker compose up --build
 ```
+This automatically boots PostgreSQL 16, creates the database tables, starts FastAPI on port 8000, and starts React on port 5173.
 
 ---
 

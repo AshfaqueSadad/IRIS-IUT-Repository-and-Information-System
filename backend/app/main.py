@@ -5,17 +5,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.db.mongodb import connect_to_mongo, close_mongo_connection
+from app.db.database import init_db, close_db
 from app.api.v1.api import api_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize DB connection
-    await connect_to_mongo()
+    # Startup: Try to initialize database tables
+    try:
+        await init_db()
+        print("Connected to PostgreSQL and verified tables.")
+    except Exception as e:
+        print(f"PostgreSQL connection deferred (starts when database is running): {e}")
     yield
-    # Shutdown: Close DB connection
-    await close_mongo_connection()
+    # Shutdown: Dispose connection pool
+    try:
+        await close_db()
+        print("Disposed database connection pool.")
+    except Exception:
+        pass
 
 
 app = FastAPI(
@@ -50,5 +58,6 @@ async def health_check():
     return {
         "status": "healthy",
         "service": settings.PROJECT_NAME,
+        "database": "PostgreSQL (SQLAlchemy + asyncpg)",
         "environment": settings.ENVIRONMENT,
     }

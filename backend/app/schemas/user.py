@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from uuid import UUID
+from pydantic import BaseModel, EmailStr, ConfigDict
 
 
 class UserRole(str, Enum):
@@ -12,6 +13,8 @@ class UserRole(str, Enum):
 
 
 class UserBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     email: EmailStr
     full_name: str
     role: UserRole = UserRole.STUDENT
@@ -24,8 +27,8 @@ class UserCreate(UserBase):
     pass
 
 
-class UserInDB(UserBase):
-    id: str = Field(..., alias="_id")
+class UserResponse(UserBase):
+    id: UUID
 
 
 class Token(BaseModel):
