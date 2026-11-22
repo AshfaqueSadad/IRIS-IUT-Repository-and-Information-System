@@ -91,5 +91,4 @@ This automatically boots PostgreSQL 16, creates the database tables, starts Fast
 
 ---
 
-## 📖 Documentation
-Detailed architectural blueprints, database schemas, and the 10-week development roadmap are located in [`documents & artifacts/PROJECT_PLAN_AND_ARCHITECTURE.md`](documents%20&%20artifacts/PROJECT_PLAN_AND_ARCHITECTURE.md).
+
