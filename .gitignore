@@ -45,6 +45,9 @@ uploads/
 temp/
 *.log
 
+# Project Documentation & Artifacts (Private to User & AI Assistant)
+documents & artifacts/
+
 # IDE
 .vscode/
 .idea/

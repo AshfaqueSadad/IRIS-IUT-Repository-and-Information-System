@@ -1,8 +1,12 @@
 from datetime import datetime
 from typing import List, Optional
+from uuid import UUID
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, status
-from bson import ObjectId
-from app.db.mongodb import get_database
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_, desc
+
+from app.db.database import get_db
+from app.models.document import NoticeDocument
 from app.schemas.user import UserBase, UserRole
 from app.schemas.document import (
     DocumentCreate,
@@ -15,7 +19,7 @@ from app.schemas.document import (
 from app.services.storage import storage_service
 from app.services.ocr_pipeline import ocr_pipeline
 from app.services.gemini_extractor import gemini_extractor
-from app.api.v1.auth import get_current_user, require_role
+from app.api.v1.auth import require_role
 
 router = APIRouter()
 
@@ -28,13 +32,13 @@ async def process_document_preview(
     """
     In-flight upload endpoint:
     Reads file, runs OCR/PDF parser, extracts structured fields with Gemini,
-    and returns a preview with confidence score before publishing.
+    and returns a preview with confidence score before committing to PostgreSQL.
     """
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    # Save to storage
+    # Save to storage (S3 / R2 or local fallback)
     file.file.seek(0)
     file_url = await storage_service.save_file(file)
 
@@ -45,10 +49,8 @@ async def process_document_preview(
     if filename.endswith(".pdf"):
         extracted_text, is_scanned = ocr_pipeline.extract_text_from_pdf_bytes(file_bytes)
         if is_scanned:
-            # Fallback for scanned PDF: convert page to image and OCR
             engine_used = "PyMuPDF + Tesseract OCR"
     else:
-        # Image file (PNG, JPG, JPEG)
         preprocessed = ocr_pipeline.preprocess_image_for_ocr(file_bytes)
         extracted_text = ocr_pipeline.extract_text_with_tesseract(preprocessed)
         engine_used = "OpenCV + Tesseract OCR"
@@ -56,7 +58,7 @@ async def process_document_preview(
     if not extracted_text:
         extracted_text = "Notice text could not be extracted automatically."
 
-    # Run Gemini Extraction
+    # Run Gemini Structured Extraction
     metadata = await gemini_extractor.extract_structured_metadata(extracted_text)
 
     return DocumentPreviewResponse(
@@ -78,75 +80,79 @@ async def process_document_preview(
 @router.post("/confirm", response_model=DocumentResponse)
 async def confirm_document(
     doc_in: DocumentCreate,
-    current_user: UserBase = Depends(require_role([UserRole.CR, UserRole.OFFICIAL, UserRole.ADMIN]))
+    current_user: UserBase = Depends(require_role([UserRole.CR, UserRole.OFFICIAL, UserRole.ADMIN])),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Save verified notice to database and publish to archive."""
-    db = get_database()
-    now = datetime.utcnow()
-    doc_dict = doc_in.dict()
-    doc_dict.update({
-        "uploaderId": current_user.email,
-        "verifiedBy": current_user.email,
-        "createdAt": now,
-        "updatedAt": now
-    })
+    """Save verified notice to PostgreSQL database and publish to archive."""
+    db_doc = NoticeDocument(
+        title=doc_in.title,
+        category=doc_in.category,
+        sub_category=doc_in.sub_category,
+        department=doc_in.department,
+        published_date=doc_in.published_date,
+        status=doc_in.status.value,
+        source_type=doc_in.source_type.value,
+        file_url=doc_in.file_url,
+        thumbnail_url=doc_in.thumbnail_url,
+        extracted_text=doc_in.extracted_text,
+        confidence_score=doc_in.confidence_score,
+        notice_metadata=doc_in.notice_metadata,
+        uploader_id=current_user.email,
+        verified_by=current_user.email
+    )
 
-    if db is not None:
-        result = await db.documents.insert_one(doc_dict)
-        doc_dict["_id"] = str(result.inserted_id)
-        return DocumentResponse(**doc_dict)
-    
-    # In-memory mock response if DB not yet connected
-    doc_dict["_id"] = str(ObjectId())
-    return DocumentResponse(**doc_dict)
+    db.add(db_doc)
+    await db.commit()
+    await db.refresh(db_doc)
+
+    return DocumentResponse.model_validate(db_doc)
 
 
 @router.get("/", response_model=List[DocumentResponse])
 async def list_documents(
-    q: Optional[str] = Query(None, description="Fuzzy search query"),
+    q: Optional[str] = Query(None, description="Search query"),
     category: Optional[str] = Query(None, description="Filter by category"),
     department: Optional[str] = Query(None, description="Filter by department"),
     status: DocumentStatus = DocumentStatus.APPROVED,
     skip: int = 0,
-    limit: int = 20
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db)
 ):
-    """Search and browse approved notices with filtering."""
-    db = get_database()
-    if db is None:
-        return []
+    """Search and browse approved notices in PostgreSQL with filtering."""
+    query = select(NoticeDocument).where(NoticeDocument.status == status.value)
 
-    filter_query = {"status": status.value}
     if category:
-        filter_query["category"] = category
+        query = query.where(NoticeDocument.category == category)
     if department and department != "All":
-        filter_query["$or"] = [{"department": department}, {"department": "All"}]
+        query = query.where(
+            or_(NoticeDocument.department == department, NoticeDocument.department == "All")
+        )
 
     if q:
-        # Atlas search or regex fallback
-        filter_query["$or"] = [
-            {"title": {"$regex": q, "$options": "i"}},
-            {"extractedText": {"$regex": q, "$options": "i"}}
-        ]
+        query = query.where(
+            or_(
+                NoticeDocument.title.ilike(f"%{q}%"),
+                NoticeDocument.extracted_text.ilike(f"%{q}%")
+            )
+        )
 
-    cursor = db.documents.find(filter_query).sort("createdAt", -1).skip(skip).limit(limit)
-    documents = []
-    async for doc in cursor:
-        doc["_id"] = str(doc["_id"])
-        documents.append(DocumentResponse(**doc))
+    query = query.order_by(desc(NoticeDocument.created_at)).offset(skip).limit(limit)
+    result = await db.execute(query)
+    docs = result.scalars().all()
 
-    return documents
+    return [DocumentResponse.model_validate(doc) for doc in docs]
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
-async def get_document(document_id: str):
-    """Retrieve full notice details by ID."""
-    db = get_database()
-    if db is None:
-        raise HTTPException(status_code=404, detail="Document not found.")
+async def get_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieve full notice details by UUID."""
+    result = await db.execute(select(NoticeDocument).where(NoticeDocument.id == document_id))
+    doc = result.scalar_one_or_none()
 
-    doc = await db.documents.find_one({"_id": ObjectId(document_id)})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
 
-    doc["_id"] = str(doc["_id"])
-    return DocumentResponse(**doc)
+    return DocumentResponse.model_validate(doc)

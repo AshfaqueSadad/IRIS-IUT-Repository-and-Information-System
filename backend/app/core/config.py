@@ -35,9 +35,8 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     ALLOWED_EMAIL_DOMAIN: str = "iut-dhaka.edu"
 
-    # MongoDB Atlas
-    MONGODB_URI: str = "mongodb://localhost:27017"
-    MONGODB_DB_NAME: str = "iris_db"
+    # Database (PostgreSQL with asyncpg)
+    DATABASE_URL: str = "postgresql+asyncpg://iris_user:iris_password@localhost:5432/iris_db"
 
     # Cloud Storage (R2 / S3 / Local fallback)
     STORAGE_PROVIDER: str = "local"  # "r2" | "s3" | "local"
