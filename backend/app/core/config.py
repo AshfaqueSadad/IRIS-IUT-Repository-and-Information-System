@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
 
+    # Security & JWT
+    SECRET_KEY: str = "change_this_to_a_super_secure_random_secret_key"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    ALLOWED_HOSTS: List[str] = ["*"]
+
     @field_validator("DEBUG", mode="before")
     @classmethod
     def parse_debug(cls, v: Any) -> bool:

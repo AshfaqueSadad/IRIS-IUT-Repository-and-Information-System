@@ -26,8 +26,11 @@ class NoticeDocument(Base):
     # Stores: targetAudience, sender, deadlines, raw OCR features
     notice_metadata = Column(JSONB, nullable=False, default=dict)
 
-    uploader_id = Column(String(255), nullable=True)
-    verified_by = Column(String(255), nullable=True)
+    uploader_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    verified_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+
+    uploader = relationship("User", foreign_keys=[uploader_id])
+    verifier = relationship("User", foreign_keys=[verified_by])
 
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -7,7 +7,7 @@ from sqlalchemy import select, or_, desc
 
 from app.db.database import get_db
 from app.models.document import NoticeDocument
-from app.schemas.user import UserBase, UserRole
+from app.schemas.user import UserResponse, UserRole
 from app.schemas.document import (
     DocumentCreate,
     DocumentResponse,
@@ -27,7 +27,7 @@ router = APIRouter()
 @router.post("/process-preview", response_model=DocumentPreviewResponse)
 async def process_document_preview(
     file: UploadFile = File(...),
-    current_user: UserBase = Depends(require_role([UserRole.CR, UserRole.OFFICIAL, UserRole.ADMIN]))
+    current_user: UserResponse = Depends(require_role([UserRole.CR, UserRole.FACULTY, UserRole.OFFICIAL, UserRole.ADMIN]))
 ):
     """
     In-flight upload endpoint:
@@ -80,7 +80,7 @@ async def process_document_preview(
 @router.post("/confirm", response_model=DocumentResponse)
 async def confirm_document(
     doc_in: DocumentCreate,
-    current_user: UserBase = Depends(require_role([UserRole.CR, UserRole.OFFICIAL, UserRole.ADMIN])),
+    current_user: UserResponse = Depends(require_role([UserRole.CR, UserRole.FACULTY, UserRole.OFFICIAL, UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Save verified notice to PostgreSQL database and publish to archive."""
@@ -97,8 +97,8 @@ async def confirm_document(
         extracted_text=doc_in.extracted_text,
         confidence_score=doc_in.confidence_score,
         notice_metadata=doc_in.notice_metadata,
-        uploader_id=current_user.email,
-        verified_by=current_user.email
+        uploader_id=current_user.id,
+        verified_by=current_user.id
     )
 
     db.add(db_doc)

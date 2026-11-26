@@ -80,7 +80,7 @@ class DocumentResponse(BaseModel):
     extracted_text: str
     confidence_score: float
     notice_metadata: Dict[str, Any]
-    uploader_id: Optional[str] = None
-    verified_by: Optional[str] = None
+    uploader_id: Optional[UUID] = None
+    verified_by: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime

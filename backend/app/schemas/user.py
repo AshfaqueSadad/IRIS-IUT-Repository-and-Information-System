@@ -31,7 +31,13 @@ class UserResponse(UserBase):
     id: UUID
 
 
+class GoogleLoginRequest(BaseModel):
+    id_token: Optional[str] = None
+    code: Optional[str] = None
+    redirect_uri: Optional[str] = None
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user: UserBase
+    user: UserResponse
